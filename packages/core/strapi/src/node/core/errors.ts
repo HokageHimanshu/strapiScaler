@@ -32,11 +32,14 @@ const handleUnexpectedError = (err: unknown) => {
     );
   }
 
-  if (err instanceof errors.YupValidationError) {
+  // If the thrown value has the shape of a YupValidationError, handle it.
+  // Use type assertion because 'err' is unknown at runtime.
+  const maybeYupErr = err as { name?: string; details?: { errors: any[] } };
+  if (maybeYupErr && maybeYupErr.name === 'YupValidationError' && maybeYupErr.details) {
     const message = [];
-    const size = err.details.errors.length;
+    const size = maybeYupErr.details.errors.length;
 
-    for (const error of err.details.errors) {
+    for (const error of maybeYupErr.details.errors) {
       // No need to repeat the error message as it's the same as the err.message
       if (size === 1) {
         message.push(`  value: ${error.value}`);
@@ -44,9 +47,7 @@ const handleUnexpectedError = (err: unknown) => {
       }
 
       message.push(
-        [`  [${error.name}]`, `    message: ${error.message}`, `      value: ${error.value}`].join(
-          '\n'
-        )
+        [`  [${error.name}]`, `    message: ${error.message}`, `      value: ${error.value}`].join('\n')
       );
     }
 

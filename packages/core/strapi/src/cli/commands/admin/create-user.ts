@@ -122,7 +122,7 @@ const action = async (cmdOptions: CmdOptions = {}) => {
 
   try {
     await adminCreateSchema.validate({ email, password, firstname, lastname });
-  } catch (err) {
+  } catch (err: any) {
     if (err instanceof yup.ValidationError) {
       console.error(err.errors[0]);
     }
