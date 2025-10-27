@@ -34,9 +34,17 @@ const getSanitizedUser = (user: any) => {
 const createAuditLogsService = (strapi: Core.Strapi) => {
   return {
     async saveEvent(event: Event) {
-      const { userId, ...rest } = event;
 
-      const auditLog: Log = { ...rest, user: userId };
+      const { userId, payload, date, action, contentType, recordId } = event as any;
+
+      const auditLog: any = {
+        action,
+        date,
+        payload,
+        user: userId,
+        contentType: contentType ?? null,
+        recordId: recordId ?? null,
+      };
 
       // Save to database
       await strapi.db?.query('admin::audit-log').create({ data: auditLog });

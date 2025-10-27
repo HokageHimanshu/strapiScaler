@@ -27,6 +27,12 @@ export const auditLog = {
         type: 'datetime',
         required: true,
       },
+      contentType: {
+        type: 'string',
+      },
+      recordId: {
+        type: 'string',
+      },
       user: {
         type: 'relation',
         relation: 'oneToOne',

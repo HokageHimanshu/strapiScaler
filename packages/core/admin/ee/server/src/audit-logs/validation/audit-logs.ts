@@ -8,6 +8,11 @@ const validateFindManySchema = yup
     page: yup.number().integer().min(1),
     pageSize: yup.number().integer().min(1).max(100),
     sort: yup.mixed().oneOf(ALLOWED_SORT_STRINGS),
+  contentType: yup.string(),
+  userId: yup.mixed().oneOf([yup.string(), yup.number()]),
+  action: yup.string(),
+  dateFrom: yup.string().matches(/\d{4}-\d{2}-\d{2}/),
+  dateTo: yup.string().matches(/\d{4}-\d{2}-\d{2}/),
   })
   .required();
 

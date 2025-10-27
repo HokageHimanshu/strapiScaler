@@ -116,29 +116,56 @@ const createAuditLogsLifecycleService = (strapi: Core.Strapi) => {
     }
 
     // Build base audit record
-    const base = {
+    const base: any = {
       action: name,
       date: new Date().toISOString(),
       payload: getPayload(...args) || {},
       userId: user?.id ?? null,
+      contentType: null,
+      recordId: null,
+    };
+
+    // Helper to compute a shallow diff between two plain objects
+    const shallowDiff = (oldObj: any = {}, newObj: any = {}) => {
+      const diff: Record<string, { from: any; to: any }> = {};
+      Object.keys({ ...oldObj, ...newObj }).forEach((key) => {
+        const a = oldObj?.[key];
+        const b = newObj?.[key];
+        if (a !== b) {
+          diff[key] = { from: a, to: b };
+        }
+      });
+      return Object.keys(diff).length ? diff : null;
     };
 
     // Enrich payload for entry events to include content type and id and a diff where possible
     if (name === 'entry.create' || name === 'entry.update' || name === 'entry.delete') {
       const entry = args[0]?.entry || args[0] || {};
       // entry may already be populated (see document-service events)
-      const ctUid = args[0]?.uid || args[0]?.model || entry?.__contentType || uid;
-      const recordId = entry?.id || entry?.documentId || args[0]?.id || null;
+  const ctUid = args[0]?.uid || args[0]?.model || entry?.__contentType || uid;
+  const recordId = entry?.id || entry?.documentId || args[0]?.id || null;
+
+  base.contentType = ctUid ?? base.contentType;
+  base.recordId = recordId ?? base.recordId;
 
       // For update we try to capture changed fields, fallback to full payload
       if (name === 'entry.update') {
         const updatePayload = args[0]?.payload || args[1] || args[0];
-        // If we receive params.data (partial), store that as changed fields
+        // Prefer explicit changed fields if provided (params.data or data)
         const changed = updatePayload?.params?.data ?? updatePayload?.data ?? updatePayload;
+
+        // If we have both previous and current entry objects (rare), compute shallow diff
+        let computedDiff = null;
+        const previous = updatePayload?.previous || null;
+        const current = entry || updatePayload?.result || null;
+        if (previous && current) {
+          computedDiff = shallowDiff(previous, current);
+        }
+
         base.payload = {
           contentType: ctUid,
           id: recordId,
-          changedFields: changed ?? base.payload,
+          changedFields: changed ?? computedDiff ?? base.payload,
         };
       } else if (name === 'entry.create') {
         base.payload = {
