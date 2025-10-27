@@ -42,5 +42,23 @@ export const auditLog = {
         type: 'json',
       },
     },
+    // Add DB indexes to speed common queries
+    indexes: [
+      {
+        name: 'strapi_audit_logs_content_type_index',
+        columns: ['content_type'],
+        type: null,
+      },
+      {
+        name: 'strapi_audit_logs_record_id_index',
+        columns: ['record_id'],
+        type: null,
+      },
+      {
+        name: 'strapi_audit_logs_date_index',
+        columns: ['date'],
+        type: null,
+      },
+    ],
   },
 };
