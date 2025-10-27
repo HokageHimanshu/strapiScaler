@@ -138,6 +138,44 @@ const createAuditLogsLifecycleService = (strapi: Core.Strapi) => {
       return Object.keys(diff).length ? diff : null;
     };
 
+    // Guarded deep diff: traverse objects up to a depth and node limit to avoid expensive computation
+    const deepDiff = (
+      oldObj: any = {},
+      newObj: any = {},
+      { maxDepth = 5, maxNodes = 1000 } = {}
+    ) => {
+      let nodes = 0;
+
+      const walk = (a: any, b: any, depth: number) => {
+        if (nodes++ > maxNodes) return { __truncated: true };
+        if (depth > maxDepth) return { __truncated: true };
+
+        // Simple equality
+        if (a === b) return undefined;
+
+        // If both are plain objects, recurse
+        if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+          const keys = Object.keys({ ...a, ...b });
+          const acc: Record<string, any> = {};
+          for (const key of keys) {
+            const res = walk(a?.[key], b?.[key], depth + 1);
+            if (res !== undefined) acc[key] = res;
+            if (nodes > maxNodes) break;
+          }
+
+          if (Object.keys(acc).length === 0) return undefined;
+          return acc;
+        }
+
+        // For arrays or different types, return from/to
+        return { from: a, to: b };
+      };
+
+      const result = walk(oldObj, newObj, 0);
+      if (result === undefined) return null;
+      return result;
+    };
+
     // Enrich payload for entry events to include content type and id and a diff where possible
     if (name === 'entry.create' || name === 'entry.update' || name === 'entry.delete') {
       const entry = args[0]?.entry || args[0] || {};
@@ -151,15 +189,19 @@ const createAuditLogsLifecycleService = (strapi: Core.Strapi) => {
       // For update we try to capture changed fields, fallback to full payload
       if (name === 'entry.update') {
         const updatePayload = args[0]?.payload || args[1] || args[0];
-        // Prefer explicit changed fields if provided (params.data or data)
-        const changed = updatePayload?.params?.data ?? updatePayload?.data ?? updatePayload;
+  // Prefer explicit changed fields if provided (params.data or data).
+  // If the payload only contains previous/result (no explicit data),
+  // don't treat the entire payload as "changed" so we can compute a diff.
+  const explicitChanged = updatePayload?.params?.data ?? updatePayload?.data;
+  const changed = explicitChanged ?? null;
 
         // If we have both previous and current entry objects (rare), compute shallow diff
         let computedDiff = null;
         const previous = updatePayload?.previous || null;
         const current = entry || updatePayload?.result || null;
         if (previous && current) {
-          computedDiff = shallowDiff(previous, current);
+          // Prefer deep diff when possible, with guards to avoid expensive operations
+          computedDiff = deepDiff(previous, current, { maxDepth: 5, maxNodes: 1000 }) ?? shallowDiff(previous, current);
         }
 
         base.payload = {
