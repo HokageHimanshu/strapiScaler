@@ -76,12 +76,21 @@ const createAuditLogsLifecycleService = (strapi: Core.Strapi) => {
   const eventMap = getEventMap(defaultEvents);
 
   const processEvent = (name: string, ...args: any) => {
+    // Check global enabled flag
+    const enabled = strapi.config.get('auditLog.enabled', true);
+    if (!enabled) {
+      return null;
+    }
+
     const requestState = strapi.requestContext.get()?.state;
 
-    // Ignore events with auth strategies different from admin
-    const isUsingAdminAuth = requestState?.route.info.type === 'admin';
+    // Allow both admin and content-api request types to be logged
+    const routeType = requestState?.route?.info?.type;
+    const isRelevantRoute = routeType === 'admin' || routeType === 'content-api';
     const user = requestState?.user;
-    if (!isUsingAdminAuth || !user) {
+
+    // If we can't determine user from context, still allow logging but user will be null
+    if (!isRelevantRoute) {
       return null;
     }
 
@@ -92,19 +101,61 @@ const createAuditLogsLifecycleService = (strapi: Core.Strapi) => {
       return null;
     }
 
-    // Ignore some events based on payload
-    // TODO: What does this ignore in upload? Why would we want to ignore anything?
-    const ignoredUids = ['plugin::upload.file', 'plugin::upload.folder'];
-    if (ignoredUids.includes(args[0]?.uid)) {
+    // Respect configured excluded content types
+    const excludeContentTypes: string[] = strapi.config.get('auditLog.excludeContentTypes', []);
+    const firstArg = args[0] || {};
+    const uid = firstArg?.uid || firstArg?.model || firstArg?.contentType || firstArg?.schema?.uid;
+    if (uid && excludeContentTypes.includes(uid)) {
       return null;
     }
 
-    return {
+    // Ignore some events based on payload (e.g., internal upload models)
+    const ignoredUids = ['plugin::upload.file', 'plugin::upload.folder'];
+    if (uid && ignoredUids.includes(uid)) {
+      return null;
+    }
+
+    // Build base audit record
+    const base = {
       action: name,
       date: new Date().toISOString(),
       payload: getPayload(...args) || {},
-      userId: user.id,
+      userId: user?.id ?? null,
     };
+
+    // Enrich payload for entry events to include content type and id and a diff where possible
+    if (name === 'entry.create' || name === 'entry.update' || name === 'entry.delete') {
+      const entry = args[0]?.entry || args[0] || {};
+      // entry may already be populated (see document-service events)
+      const ctUid = args[0]?.uid || args[0]?.model || entry?.__contentType || uid;
+      const recordId = entry?.id || entry?.documentId || args[0]?.id || null;
+
+      // For update we try to capture changed fields, fallback to full payload
+      if (name === 'entry.update') {
+        const updatePayload = args[0]?.payload || args[1] || args[0];
+        // If we receive params.data (partial), store that as changed fields
+        const changed = updatePayload?.params?.data ?? updatePayload?.data ?? updatePayload;
+        base.payload = {
+          contentType: ctUid,
+          id: recordId,
+          changedFields: changed ?? base.payload,
+        };
+      } else if (name === 'entry.create') {
+        base.payload = {
+          contentType: ctUid,
+          id: recordId,
+          fullPayload: entry ?? base.payload,
+        };
+      } else if (name === 'entry.delete') {
+        base.payload = {
+          contentType: ctUid,
+          id: recordId,
+          deletedPayload: entry ?? base.payload,
+        };
+      }
+    }
+
+    return base;
   };
 
   const handleEvent = async (name: string, ...args: any) => {
