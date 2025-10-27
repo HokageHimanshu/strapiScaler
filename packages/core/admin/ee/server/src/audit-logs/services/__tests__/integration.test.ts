@@ -214,4 +214,27 @@ describe('Audit logs integration (simulated)', () => {
     expect(createdArg.data.payload.deletedPayload).toBeDefined();
     expect(createdArg.data.recordId).toBe(99);
   });
+
+  it('should NOT persist logs for excluded content types', async () => {
+    const mockCreate = jest.fn().mockResolvedValue({});
+
+    const strapi: any = {
+      requestContext: { get() { return { state: { user: { id: 21 }, route: { info: { type: 'content-api' } } } }; } },
+      ee: { features: { isEnabled: jest.fn().mockReturnValue(true), get: jest.fn().mockReturnValue({ options: {} }) } },
+      config: { get(key: string, def?: any) { if (key === 'admin.auditLogs.enabled') return true; if (key === 'auditLog.enabled') return def ?? true; if (key === 'auditLog.excludeContentTypes') return ['api::secret.secret']; return def; } },
+      eventHub: { subs: {} as Record<string, any>, on(eventName: string, fn: any) { this.subs[eventName] = fn; return () => delete this.subs[eventName]; }, subscribe(fn: any) { this.subs.__subscriber = fn; return () => delete this.subs.__subscriber; }, emit(eventName: string, ...args: any[]) { if (this.subs.__subscriber) this.subs.__subscriber(eventName, ...args); return this.subs[eventName] && this.subs[eventName](...args); } },
+      get(name: string) { if (name === 'audit-logs') return this['audit-logs']; return undefined; },
+      'audit-logs': { saveEvent: async (event: any) => { await strapi.db.query('admin::audit-log').create({ data: event }); } },
+      db: { query() { return { create: mockCreate }; } },
+      cron: { add: jest.fn(), remove: jest.fn() },
+    };
+
+    const lifecycle = createAuditLogsLifecycleService(strapi as any);
+    await lifecycle.register();
+
+    // Emit an event for an excluded content-type uid
+    await strapi.eventHub.emit('entry.create', { uid: 'api::secret.secret', entry: { id: 1 } });
+
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
 });
