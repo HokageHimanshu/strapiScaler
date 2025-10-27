@@ -192,4 +192,14 @@ export const ROUTES_CE: RouteObject[] = [
     },
     path: 'purchase-content-history',
   },
+  {
+    lazy: async () => {
+      const { default: AuditLogsPage } = await import('./pages/AuditLogs');
+
+      return {
+        Component: AuditLogsPage,
+      };
+    },
+    path: 'audit-logs',
+  },
 ];
