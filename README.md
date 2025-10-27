@@ -117,14 +117,21 @@ Strapi only supports maintenance and LTS versions of Node.js. Please refer to th
 
 ## Features
 
-- **Content Types Builder**: Build the most flexible publishing experience for your content managers, by giving them the freedom to create any page on the go with [fields](https://docs.strapi.io/user-docs/content-manager/writing-content#filling-up-fields), components and [Dynamic Zones](https://docs.strapi.io/user-docs/content-manager/writing-content#dynamic-zones).
-- **Media Library**: Upload your images, videos, audio or documents to the media library. Easily find the right asset, edit and reuse it.
-- **Internationalization**: The Internationalization (i18n) plugin allows Strapi users to create, manage and distribute localized content in different languages, called "locales"
-- **Role Based Access Control**: Create an unlimited number of custom roles and permissions for admin and end users.
-- **GraphQL or REST**: Consume the API using REST or GraphQL
 
 You can unlock additional features such as SSO, Audit Logs, Review Workflows in [Strapi Cloud](https://cloud.strapi.io/login?source=github1) or [Strapi Enterprise](https://strapi.io/enterprise?source=github1).
 
+## Audit Logs Feature (Strapi fork)
+
+If you'd like, I can now:
+ - Expand the Admin UI with filters and paging,
+ - Wire the migration into the migration runner explicitly,
+ - Draft a quick PR description and split commits for submission.
+
+---
+
+Design note
+-----------
+See `DESIGN_NOTE.md` for a full design summary, architecture, assumptions, and future work notes related to the Audit Logs feature.
 **[See more on our website](https://strapi.io/overview)**.
 
 ## Contributing
